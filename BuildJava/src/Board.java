@@ -4,6 +4,8 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -121,6 +123,7 @@ class Board implements MouseListener{
                             }
                             board[i][j] = player;
                             isTurn = true;
+                            System.out.println("click");
                             cpuMove();
                         }
                     }
@@ -136,67 +139,80 @@ class Board implements MouseListener{
                 game.result.setText("U lost");
                 isEnd = true;
             }
-            if(isEnd && winner==0) game.result.setText("Draw");
+            else if(generateMoves(cpu).isEmpty() && winner==0) game.result.setText("Draw");
         }
     }
     
-    private List minmax(int depth, boolean isTurn, int alpha, int beta){
+    private int minmax(int depth, boolean isTurn){
         List <Position> moves = generateMoves(isTurn?cpu:player);
-        int score = 0;
-        int bestRow = -1;
-        int bestCol = -1;
-        if(moves.isEmpty() || depth==0) score = getScore();
+        if(checkWin(player)){
+            return -100;
+        }
+        else if(checkWin(cpu)){
+            return 100;
+        }
+        else if(moves.isEmpty() || depth==0) return getScore();
+        int bestScore = 0;
         //try moves
-        for(Position move : moves){
-            board[move.getX()][move.getY()] = (isTurn)?cpu:player ;
             if (isTurn){  // simulate cpu move
-               score = (int)minmax(depth - 1, !isTurn, alpha, beta).get(0);
-               if (score > alpha) {
-                  alpha = score;
-                  bestRow = move.getX();
-                  bestCol = move.getY();
-               }
-            } else {  // simulate player move
-               score = (int)minmax(depth - 1, isTurn, alpha, beta).get(0);
-               if (score < beta) {
-                  beta = score;
-                  bestRow = move.getX();
-                  bestCol = move.getY();
+               bestScore = -10000;
+		for(Position move : moves){
+                    int x = move.getX();
+                    int y = move.getY();
+                    board[x][y] = cpu;
+                    bestScore = max(bestScore, minmax(depth-1, !isTurn));
+                    board[x][y] = 0; 
+                }
+			
+            }
+            else {  // simulate player move
+                bestScore = 10000;
+		for(Position move : moves){
+                    int x = move.getX();
+                    int y = move.getY();
+                    board[x][y] = 1;
+                    bestScore = min(bestScore, minmax(depth-1, !isTurn));
+                    board[x][y] = 0;
                 }
             }
-            board[move.getX()][move.getY()] = 0; //undo move
-            if(alpha >= beta) break;
-        }
-        List result = new ArrayList();
-        result.add((isTurn)?alpha:beta);
-        result.add(new Position(bestRow, bestCol));
-        return result;
+        return bestScore;
     }
             
     
     private void cpuMove() {
         int depth = 5; //if size = 3x3 depth is 5
         switch(size){ //decrease depth on larger sizes for more speed
-            case 5: depth = 1; break;
+            case 5: depth = 3; break;
             case 10: depth = 1; break;
         }
-        Position move = (Position) minmax(depth, isTurn, -1000, 1000).get(1);
+        int best = -1000;
+	Position move = new Position(-1, -1);
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < board[i].length; j++) {
+		if (board[i][j] == 0) {
+                    board[i][j] = 2;
+                    int score = minmax(depth, isTurn);
+                    board[i][j] = 0;
+                    if (score > best) {
+                        best = score;
+                        move.setX(i);
+                        move.setY(j);
+                    }
+		}
+            }
+	}
         int x = move.getX();
         int y = move.getY();
-        if(x<0 || y<0) isEnd = true;
-        else{
-            board[x][y] = cpu;
-            if(cpu==1){
-                buttons[x][y].setForeground(Color.red);
-                buttons[x][y].setText("X");
-            }
-            else{
-                buttons[x][y].setForeground(Color.blue);
-                buttons[x][y].setText("O");
-            }
-            isTurn = false;
+        board[x][y] = cpu;
+        if(cpu==1){
+            buttons[x][y].setForeground(Color.red);
+            buttons[x][y].setText("X");
         }
-        
+        else{
+            buttons[x][y].setForeground(Color.blue);
+            buttons[x][y].setText("O");
+        }
+        isTurn = false;
     }
     
     @Override
@@ -235,7 +251,7 @@ class Board implements MouseListener{
         //sort moves
         for (int i = 0; i < scores.size(); i++) {
             for (int j = i+1; j < scores.size()-1; j++) {
-                if(scores.get(i).intValue() < scores.get(j).intValue()) Collections.swap(moves, i, j);
+                if(scores.get(i) < scores.get(j)) Collections.swap(moves, i, j);
             }
             
         }
